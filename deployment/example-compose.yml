@@ -1,0 +1,61 @@
+---
+volumes:
+  data-grafana: {}
+
+services:
+  prometheus:
+    image: quay.io/prometheus/prometheus:latest
+    environment:
+      TZ: UTC
+    volumes:
+      - ./container-fs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data/prometheus:/prometheus
+    ports:
+      - "9090:9090/tcp"
+
+  promsnmp:
+    image: ghcr.io/pbrane/promsnmp-metrics:latest
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+    init: true
+    tty: true
+    stdin_open: true
+    volumes:
+      - ./data/promsnmp:/app/data
+    environment:
+      TZ: UTC
+      DISCOVERY_TZ: UTC
+      PROM_DISCOVERY_API: snmp
+      PROM_METRICS_API: snmp
+      METRICS_REPO_API: snmp
+      PROM_INV_FILE: /app/data/promsnmp-inventory.json
+      PROM_ENCRYPT_KEY: 0123456789ABCDEF
+      PROM_TENANT_ID: 0123456789
+      PROM_SITE_ID: 0123456789
+      PROM_SITE_LABEL: Chicago POP
+      PROM_SITE_DESCR: Primary aggregation point in downtown Chicago
+      PROM_SITE_ADDR: 350 E Cermak Rd, Chicago, IL 60616, USA
+      PROM_SITE_LAT: 41.853742
+      PROM_SITE_LONG: -87.618805
+      CACHE_STATS_RATE_MILLIS: 15000
+      CACHE_EXP_MILLIS: 300000
+      CACHE_ENTRY_CNT: 10000
+      DISCOVERY_CRON: "0 0 2 * * *"
+      DISCOVERY_ON_START: false
+      COLLECTION_INTERVAL: 30000
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080/tcp"
+
+  grafana:
+    image: docker.io/grafana/grafana-oss:latest
+    environment:
+      TZ: UTC
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - data-grafana:/var/lib/grafana
+      - ./container-fs/grafana/provisioning:/etc/grafana/provisioning/
+      - ../src/main/resources/dashboards:/etc/grafana/provisioning/dashboards/json
+    ports:
+      - "3000:3000/tcp"
