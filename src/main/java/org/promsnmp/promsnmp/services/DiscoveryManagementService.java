@@ -1,13 +1,15 @@
 package org.promsnmp.promsnmp.services;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.promsnmp.promsnmp.dto.DiscoveryRequestDTO;
 import org.promsnmp.promsnmp.inventory.InventoryBackupManager;
 import org.promsnmp.promsnmp.inventory.InventoryPublisher;
 import org.promsnmp.promsnmp.inventory.discovery.SnmpAgentDiscovery;
+import org.promsnmp.promsnmp.model.NetworkDevice;
+import org.promsnmp.promsnmp.repositories.jpa.NetworkDeviceRepository;
 import org.promsnmp.promsnmp.utils.IpUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.InetAddress;
 import java.util.List;
@@ -23,15 +25,18 @@ public class DiscoveryManagementService {
     private final DiscoverySeedService seedService;
     private final InventoryPublisher inventoryPublisher;
     private final InventoryBackupManager inventoryBackupManager;
+    private final NetworkDeviceRepository deviceRepository;
 
     public DiscoveryManagementService(SnmpAgentDiscovery discoveryService,
                                       DiscoverySeedService seedService,
                                       InventoryPublisher inventoryPublisher,
-                                      InventoryBackupManager inventoryBackupManager) {
+                                      InventoryBackupManager inventoryBackupManager,
+                                      NetworkDeviceRepository deviceRepository) {
         this.discoveryService = discoveryService;
         this.seedService = seedService;
         this.inventoryPublisher = inventoryPublisher;
         this.inventoryBackupManager = inventoryBackupManager;
+        this.deviceRepository = deviceRepository;
     }
 
     public void handleDiscoveryRequest(DiscoveryRequestDTO request, boolean scheduleNow, boolean saveSeed) {
@@ -57,7 +62,11 @@ public class DiscoveryManagementService {
                     }
                     agents.forEach(a -> {
                         a.setVersion(snmpVersion);
-                        a.getDevice().setPrimaryAgent(a);
+                        NetworkDevice device = a.getDevice();
+                        if (device != null) {
+                            device.setPrimaryAgent(a);
+                            deviceRepository.save(device);  // Persist primaryAgent and version changes
+                        }
                     });
                     inventoryPublisher.publish(agents);
                 });
@@ -82,7 +91,11 @@ public class DiscoveryManagementService {
                     }
                     agents.forEach(a -> {
                         a.setVersion(snmpVersion);
-                        a.getDevice().setPrimaryAgent(a);
+                        NetworkDevice device = a.getDevice();
+                        if (device != null) {
+                            device.setPrimaryAgent(a);
+                            deviceRepository.save(device);  // Persist primaryAgent and version changes
+                        }
                     });
                     inventoryPublisher.publish(agents);
                 });
