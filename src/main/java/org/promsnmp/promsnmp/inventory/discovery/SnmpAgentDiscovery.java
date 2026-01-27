@@ -84,9 +84,16 @@ public class SnmpAgentDiscovery {
                             agent.setReadCommunity(community);
                             agent.setDiscoveredAt(Instant.now());
 
-                            createDeviceFromMib2(snmp, target).ifPresent(agent::setDevice);
+                            Optional<NetworkDevice> deviceOpt = createDeviceFromMib2(snmp, target);
+                            if (deviceOpt.isPresent()) {
+                                NetworkDevice device = deviceOpt.get();
+                                device.addAgent(agent);  // Establishes bidirectional relationship
+                                deviceRepo.save(device); // Cascades to save agent
+                            } else {
+                                communityRepo.save(agent); // Save agent without device
+                            }
 
-                            return CompletableFuture.completedFuture(Optional.of(communityRepo.save(agent)));
+                            return CompletableFuture.completedFuture(Optional.of(agent));
                         }
                     }
                 }
@@ -150,8 +157,15 @@ public class SnmpAgentDiscovery {
                 VariableBinding vb = event.getResponse().get(0);
                 if (!vb.getVariable().isException()) {
                     if (userRepo.findByEndpoint(agent.getEndpoint()).isEmpty()) {
-                        createDeviceFromMib2(snmp, target).ifPresent(agent::setDevice);
-                        return CompletableFuture.completedFuture(Optional.of(userRepo.save(agent)));
+                        Optional<NetworkDevice> deviceOpt = createDeviceFromMib2(snmp, target);
+                        if (deviceOpt.isPresent()) {
+                            NetworkDevice device = deviceOpt.get();
+                            device.addAgent(agent);  // Establishes bidirectional relationship
+                            deviceRepo.save(device); // Cascades to save agent
+                        } else {
+                            userRepo.save(agent); // Save agent without device
+                        }
+                        return CompletableFuture.completedFuture(Optional.of(agent));
                     }
                 }
             }
