@@ -10,6 +10,7 @@ services:
     volumes:
       - ./container-fs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./data/prometheus:/prometheus
+    stop_grace_period: 30s
     ports:
       - "9090:9090/tcp"
 
