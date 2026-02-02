@@ -10,6 +10,7 @@ services:
     volumes:
       - ./container-fs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./data/prometheus:/prometheus
+    stop_grace_period: 30s
     ports:
       - "9090:9090/tcp"
 
@@ -58,4 +59,4 @@ services:
       - ./container-fs/grafana/provisioning:/etc/grafana/provisioning/
       - ../src/main/resources/dashboards:/etc/grafana/provisioning/dashboards/json
     ports:
-      - "3000:3000/tcp"
+      - "3001:3000/tcp"

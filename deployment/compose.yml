@@ -2,6 +2,7 @@
 volumes:
   data-prometheus: {}
   data-grafana: {}
+  data-promsnmp: {}
 
 services:
   prometheus:
@@ -11,6 +12,7 @@ services:
     volumes:
       - ./container-fs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - data-prometheus:/prometheus
+    stop_grace_period: 30s
     ports:
       - "9090:9090/tcp"
 
@@ -44,6 +46,8 @@ services:
       DISCOVERY_ON_START: false
       COLLECTION_INTERVAL: 30000
       SERVER_PORT: 8080
+    volumes:
+      - data-promsnmp:/app/data
     ports:
       - "8080:8080/tcp"
 
@@ -57,4 +61,4 @@ services:
       - ./container-fs/grafana/provisioning:/etc/grafana/provisioning/
       - ../src/main/resources/dashboards:/etc/grafana/provisioning/dashboards/json
     ports:
-      - "3000:3000/tcp"
+      - "3001:3000/tcp"
