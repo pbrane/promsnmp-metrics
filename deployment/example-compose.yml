@@ -58,4 +58,4 @@ services:
       - ./container-fs/grafana/provisioning:/etc/grafana/provisioning/
       - ../src/main/resources/dashboards:/etc/grafana/provisioning/dashboards/json
     ports:
-      - "3000:3000/tcp"
+      - "3001:3000/tcp"
