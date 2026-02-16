@@ -1,6 +1,7 @@
 package org.promsnmp.promsnmp.services.prometheus;
 
 import org.promsnmp.promsnmp.services.PrometheusMetricsService;
+import org.promsnmp.promsnmp.services.cache.CachedMetrics;
 import org.promsnmp.promsnmp.services.cache.CachedMetricsService;
 import org.springframework.stereotype.Service;
 
@@ -12,7 +13,7 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@Service("SnmpSvc") // Matches key in ServiceApiConfig.java
+@Service("SnmpSvc")
 public class SnmpBasedMetricsService implements PrometheusMetricsService {
 
     private final CachedMetricsService cachedMetrics;
@@ -25,13 +26,13 @@ public class SnmpBasedMetricsService implements PrometheusMetricsService {
     public Optional<String> getMetrics(String instance, boolean regex) {
         Instant start = Instant.now();
 
-        Optional<String> rawMetrics = cachedMetrics.getRawMetrics(instance)
-                .map(metrics -> filterByInstance(metrics, instance, regex));
+        Optional<CachedMetrics> cached = cachedMetrics.getRawMetrics(instance);
 
         Instant end = Instant.now();
         double durationSeconds = Duration.between(start, end).toNanos() / 1_000_000_000.0;
 
-        return rawMetrics.map(metrics -> metrics
+        return cached.map(cm -> filterByInstance(cm.metricsPayload(), instance, regex)
+                + scrapeSuccessMetric(cm.lastRefreshSucceeded())
                 + "# HELP snmp_scrape_duration_seconds Total SNMP time scrape took (cached read).\n"
                 + "# TYPE snmp_scrape_duration_seconds gauge\n"
                 + "snmp_scrape_duration_seconds{source=\"cached\"} " + durationSeconds + "\n");
@@ -41,15 +42,23 @@ public class SnmpBasedMetricsService implements PrometheusMetricsService {
     public Optional<String> forceRefreshMetrics(String instance, boolean regex) {
         Instant start = Instant.now();
 
-        Optional<String> refreshed = cachedMetrics.refreshMetrics(instance);
+        Optional<CachedMetrics> refreshed = cachedMetrics.refreshMetrics(instance);
 
         Instant end = Instant.now();
         double durationSeconds = Duration.between(start, end).toNanos() / 1_000_000_000.0;
 
-        return refreshed.map(metrics -> metrics
+        return refreshed.map(cm -> filterByInstance(cm.metricsPayload(), instance, regex)
+                + scrapeSuccessMetric(cm.lastRefreshSucceeded())
                 + "# HELP snmp_scrape_duration_seconds Total SNMP time scrape took (forced, real-time read).\n"
                 + "# TYPE snmp_scrape_duration_seconds gauge\n"
                 + "snmp_scrape_duration_seconds{source=\"uncached\"} " + durationSeconds + "\n");
+    }
+
+    private String scrapeSuccessMetric(boolean succeeded) {
+        int value = succeeded ? 1 : 0;
+        return "# HELP snmp_scrape_success Whether the last SNMP scrape was successful (1=fresh, 0=stale).\n"
+                + "# TYPE snmp_scrape_success gauge\n"
+                + "snmp_scrape_success " + value + "\n";
     }
 
     private String formatMetrics(String rawMetrics) {

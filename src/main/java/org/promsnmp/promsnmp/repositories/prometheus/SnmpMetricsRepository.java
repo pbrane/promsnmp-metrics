@@ -20,6 +20,7 @@ import org.snmp4j.util.DefaultPDUFactory;
 import org.snmp4j.util.TreeEvent;
 import org.snmp4j.util.TreeUtils;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -76,6 +77,7 @@ public class SnmpMetricsRepository implements PrometheusMetricsRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<String> readMetrics(String instance) {
         return deviceRepository.findBySysNameWithAgents(instance)
                 .flatMap(device -> {
