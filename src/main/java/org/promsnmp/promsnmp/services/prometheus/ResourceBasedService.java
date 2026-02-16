@@ -3,6 +3,7 @@ package org.promsnmp.promsnmp.services.prometheus;
 import org.promsnmp.promsnmp.repositories.PrometheusDiscoveryRepository;
 import org.promsnmp.promsnmp.services.PrometheusDiscoveryService;
 import org.promsnmp.promsnmp.services.PrometheusMetricsService;
+import org.promsnmp.promsnmp.services.cache.CachedMetrics;
 import org.promsnmp.promsnmp.services.cache.CachedMetricsService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class ResourceBasedService implements PrometheusMetricsService, Prometheu
     @Override
     public Optional<String> getMetrics(String instance, boolean regex) {
         return cachedMetrics.getRawMetrics(instance)
+                .map(CachedMetrics::metricsPayload)
                 .map(this::formatMetrics)
                 .map(metrics -> filterByInstance(metrics, instance, regex));
     }
@@ -41,6 +43,7 @@ public class ResourceBasedService implements PrometheusMetricsService, Prometheu
     @Override
     public Optional<String> forceRefreshMetrics(String instance, boolean regex) {
         return cachedMetrics.getRawMetrics(instance)
+                .map(CachedMetrics::metricsPayload)
                 .map(this::formatMetrics)
                 .map(metrics -> filterByInstance(metrics, instance, regex));
     }

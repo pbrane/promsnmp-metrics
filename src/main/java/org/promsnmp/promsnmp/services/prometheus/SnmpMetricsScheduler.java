@@ -2,12 +2,9 @@ package org.promsnmp.promsnmp.services.prometheus;
 
 import lombok.extern.slf4j.Slf4j;
 import org.promsnmp.promsnmp.model.NetworkDevice;
-import org.promsnmp.promsnmp.repositories.PrometheusMetricsRepository;
 import org.promsnmp.promsnmp.repositories.jpa.NetworkDeviceRepository;
-import org.promsnmp.promsnmp.repositories.prometheus.SnmpMetricsRepository;
 import org.promsnmp.promsnmp.services.cache.CachedMetricsService;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,34 +20,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SnmpMetricsScheduler {
 
     private final NetworkDeviceRepository deviceRepository;
-    private final PrometheusMetricsRepository snmpMetricsRepository;
 
     private final ConcurrentHashMap<String, AtomicBoolean> collectionLocks = new ConcurrentHashMap<>();
     private final Executor snmpExecutor;
 
     private final CachedMetricsService cachedMetricsService;
 
-    @Value("${COLLECTION_INTERVAL:300000}")
-    private int collectionInterval;
-
     public SnmpMetricsScheduler(NetworkDeviceRepository deviceRepository,
-                                @Qualifier("configuredMetricsRepo") PrometheusMetricsRepository snmpMetricsRepository,
                                 @Qualifier("snmpDiscoveryExecutor") Executor snmpExecutor,
                                 CachedMetricsService cachedMetricsService) {
 
         this.deviceRepository = deviceRepository;
-        this.snmpMetricsRepository = snmpMetricsRepository;
         this.snmpExecutor = snmpExecutor;
         this.cachedMetricsService = cachedMetricsService;
     }
 
-    @Scheduled(fixedRateString = "${collection.interval:30000}") // Every 30 seconds
+    @Scheduled(fixedRateString = "${collection.interval:30000}")
     public void scheduledMetricCollection() {
         log.info("Starting scheduled SNMP metric collection...");
 
-//        List<NetworkDevice> devices = deviceRepository.findAll();
         List<NetworkDevice> devices = deviceRepository.findAllWithAgents();
-
 
         devices.stream()
                 .filter(device -> device.resolvePrimaryAgent() != null)
@@ -62,11 +51,10 @@ public class SnmpMetricsScheduler {
                 }));
     }
 
-    @Async("snmpMetricsExecutor") //Tying this to a thread pool configuration
+    @Async("snmpMetricsExecutor")
     public CompletableFuture<Void> collectMetricsAsync(String instance) {
         AtomicBoolean lock = collectionLocks.computeIfAbsent(instance, k -> new AtomicBoolean(false));
 
-        // Try to acquire lock
         if (!lock.compareAndSet(false, true)) {
             log.warn("Metric collection for instance '{}' is already in progress. Skipping this run.", instance);
             return CompletableFuture.completedFuture(null);
@@ -75,14 +63,17 @@ public class SnmpMetricsScheduler {
         return CompletableFuture.runAsync(() -> {
             try {
                 log.debug("Collecting metrics for instance: {}", instance);
-                //snmpMetricsRepository.readMetrics(instance);
-                cachedMetricsService.refreshMetrics(instance);
+                cachedMetricsService.refreshMetrics(instance)
+                        .ifPresent(cm -> {
+                            if (!cm.lastRefreshSucceeded()) {
+                                log.warn("SNMP collection failed for '{}'; serving stale data from {}", instance, cm.collectedAt());
+                            }
+                        });
             } catch (Exception ex) {
                 log.error("Error during SNMP metric collection for instance: {}", instance, ex);
             } finally {
-                lock.set(false); // Always release the lock
+                lock.set(false);
             }
         }, snmpExecutor);
-
     }
 }

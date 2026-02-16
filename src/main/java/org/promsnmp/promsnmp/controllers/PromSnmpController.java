@@ -1,10 +1,11 @@
 package org.promsnmp.promsnmp.controllers;
 
+import com.github.benmanes.caffeine.cache.AsyncLoadingCache;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.promsnmp.promsnmp.services.cache.CachedMetrics;
 import org.promsnmp.promsnmp.utils.ProtocolOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.cache.CacheManager;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This Controller is for management of the PromSnmp instance
@@ -25,15 +25,15 @@ import java.util.Objects;
 @RequestMapping("/promsnmp")
 public class PromSnmpController {
 
-    private final CacheManager cacheManager;
+    private final AsyncLoadingCache<String, CachedMetrics> metricsCache;
 
     private final ThreadPoolTaskExecutor snmpDiscoveryExecutor;
     private final ThreadPoolTaskExecutor snmpMetricsExecutor;
 
-    public PromSnmpController(CacheManager cacheManager,
+    public PromSnmpController(AsyncLoadingCache<String, CachedMetrics> metricsCache,
             @Qualifier("snmpDiscoveryExecutor") ThreadPoolTaskExecutor discoveryExecutor,
             @Qualifier("snmpMetricsExecutor") ThreadPoolTaskExecutor metricsExecutor) {
-        this.cacheManager = cacheManager;
+        this.metricsCache = metricsCache;
         this.snmpDiscoveryExecutor = discoveryExecutor;
         this.snmpMetricsExecutor = metricsExecutor;
     }
@@ -47,7 +47,7 @@ public class PromSnmpController {
     @Operation(summary = "Evict Metric Cache", description = "Clears the cache of Metrics in memory")
     @GetMapping("/evictCache")
     public String evictAll() {
-        Objects.requireNonNull(cacheManager.getCache("metrics")).clear();
+        metricsCache.synchronous().invalidateAll();
         return "Cache cleared.";
     }
 
